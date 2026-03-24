@@ -18,47 +18,120 @@ UPDATE_URL = "https://raw.githubusercontent.com/WolfaterVN/ToolRJ/refs/heads/mai
 # Bảng màu
 R, G, Y, B, W = '\033[1;31m', '\033[1;32m', '\033[1;33m', '\033[1;34m', '\033[1;37m'
 
+def parse_version(value):
+    parts = re.findall(r"\d+", str(value))
+    return tuple(int(p) for p in parts) if parts else (0,)
+
+def extract_remote_version(content):
+    patterns = [
+        r'VERSION\s*=\s*"([\d.]+)"',
+        r"VERSION\s*=\s*'([\d.]+)'"
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, content)
+        if match:
+            return match.group(1)
+    return None
+
+def is_newer_version(remote_version, current_version):
+    return parse_version(remote_version) > parse_version(current_version)
+
+def sh(command):
+    return subprocess.getoutput(command).strip()
+
 def get_auto_package():
-    """Tự động nhận diện bản Roblox đang cài trên máy"""
-    pkgs = ["com.vng.roblox", "com.roblox.client"]
-    for p in pkgs:
-        check = subprocess.getoutput(f"pm list packages {p}")
-        if p in check:
-            return p
-    return "com.roblox.client" # Mặc định nếu không tìm thấy
+    """Tự động nhận diện package Roblox phù hợp trên máy"""
+    candidates = ["com.vng.roblox", "com.roblox.client"]
+    installed_raw = sh("pm list packages 2>/dev/null")
+    installed = [p for p in candidates if (f"package:{p}" in installed_raw or p in installed_raw)]
+
+    if not installed:
+        return "com.roblox.client"
+
+    for pkg in installed:
+        if sh(f"pidof {pkg} 2>/dev/null"):
+            return pkg
+
+    return installed[0]
 
 def get_auto_id(pkg):
-    """Quét sâu vào hệ thống để lấy ID ngay lập tức"""
+    """Quét sâu shared_prefs để lấy Account ID trên máy đã root"""
     try:
-        # Quét tất cả file .xml trong shared_prefs để tìm UserID
-        cmd = f"su -c \"grep -hroP '(?<=UserID\" value=\")\\d+' /data/data/{pkg}/shared_prefs/ 2>/dev/null\""
-        res = subprocess.getoutput(cmd).strip().split('\n')[0]
-        if res.isdigit() and len(res) > 5:
-            return res
-        
-        # Phương án dự phòng 2: Quét BrowserTracker
-        cmd2 = f"su -c \"grep -hroP '(?<=browserTrackerId\">)\\d+' /data/data/{pkg}/shared_prefs/ 2>/dev/null\""
-        res2 = subprocess.getoutput(cmd2).strip().split('\n')[0]
-        if res2.isdigit(): return res2
-            
+        root_ok = sh("su -c 'id -u 2>/dev/null'")
+        if root_ok != "0":
+            return "Lỗi Root"
+
+        pref_dir = f"/data/data/{pkg}/shared_prefs"
+        list_cmd = f"su -c 'find {pref_dir} -maxdepth 1 -type f -name \"*.xml\" 2>/dev/null'"
+        xml_files = [line.strip() for line in sh(list_cmd).splitlines() if line.strip()]
+
+        if not xml_files:
+            return "Chưa đăng nhập"
+
+        patterns = [
+            r'name="UserID"\s+value="(\d{6,})"',
+            r'name="UserId"\s+value="(\d{6,})"',
+            r'name="userid"\s+value="(\d{6,})"',
+            r'name="browserTrackerId"\s+value="(\d{6,})"',
+            r'"UserID"\s*:\s*"?(\d{6,})"?',
+            r'"userId"\s*:\s*"?(\d{6,})"?'
+        ]
+
+        for xml_path in xml_files:
+            content = sh(f"su -c 'cat {xml_path} 2>/dev/null'")
+            if not content:
+                continue
+
+            for pattern in patterns:
+                match = re.search(pattern, content, flags=re.IGNORECASE)
+                if match:
+                    return match.group(1)
+
+        fallback_cmd = (
+            f"su -c 'grep -RhoE \"[0-9]{{6,}}\" {pref_dir}/*.xml 2>/dev/null | head -n 1'"
+        )
+        fallback_id = sh(fallback_cmd)
+        if fallback_id.isdigit() and len(fallback_id) >= 6:
+            return fallback_id
+
         return "Chưa đăng nhập"
-    except:
+    except Exception:
         return "Lỗi Root"
 
-def auto_update():
+def auto_update(show_latest_msg=False):
     print(f"{Y}[*] Đang kiểm tra phiên bản mới...{W}")
     try:
         response = requests.get(UPDATE_URL, timeout=10, verify=False)
         if response.status_code == 200:
-            remote_ver = re.search(r'VERSION = "([\d.]+)"', response.text).group(1)
-            if remote_ver != VERSION:
+            remote_ver = extract_remote_version(response.text)
+            if not remote_ver:
+                print(f"{R}[!] Không đọc được VERSION từ server.{W}")
+                return False
+
+            if is_newer_version(remote_ver, VERSION):
                 print(f"{G}[+] Tìm thấy bản {remote_ver}. Đang tự động cập nhật...{W}")
-                with open(__file__, "w", encoding="utf-8") as f:
+                tmp_file = __file__ + ".new"
+                backup_file = __file__ + ".bak"
+
+                with open(tmp_file, "w", encoding="utf-8") as f:
                     f.write(response.text)
+
+                if os.path.exists(backup_file):
+                    os.remove(backup_file)
+                os.replace(__file__, backup_file)
+                os.replace(tmp_file, __file__)
+
                 print(f"{G}[✔] Xong! Khởi động lại Hub...{W}")
                 time.sleep(1.5)
-                os.execv(sys.executable, ['python'] + sys.argv)
-    except: pass
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+                return True
+            elif show_latest_msg:
+                print(f"{G}[✓] Bạn đang ở phiên bản mới nhất ({VERSION}).{W}")
+        else:
+            print(f"{R}[!] Không thể tải bản cập nhật (HTTP {response.status_code}).{W}")
+    except Exception as e:
+        print(f"{R}[!] Lỗi cập nhật: {e}{W}")
+    return False
 
 def launch_game(pkg, link=None):
     os.system(f"su -c 'am force-stop {pkg}'")
@@ -124,7 +197,8 @@ def main():
             os.system("su -c 'sync && echo 3 > /proc/sys/vm/drop_caches'")
             print(f"{G}Đã tối ưu RAM!"); time.sleep(1)
         elif choice == '4':
-            auto_update()
+            auto_update(show_latest_msg=True)
+            time.sleep(1.2)
         elif choice == '5':
             sys.exit()
 
