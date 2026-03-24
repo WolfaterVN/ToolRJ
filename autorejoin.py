@@ -420,12 +420,22 @@ def main():
         if choice == '1':
             start_monitor(current_pkg, current_id)
         elif choice == '2':
-            url = input(f"{Y}Dán link Private: {W}")
+            url = current_link
+            if current_link:
+                print(f"{Y}Link cũ: {B}{current_link}{W}")
+                use_old = input(f"{Y}Dùng lại link này? (Enter=Có, s=Nhập mới): {W}").strip().lower()
+                if use_old != 's':
+                    url = current_link
+                else:
+                    url = input(f"{Y}Dán link Private mới: {W}").strip()
+            else:
+                url = input(f"{Y}Dán link Private: {W}").strip()
+            
             if url:
                 current_link = url
                 config["private_link"] = current_link
                 save_config(config)
-            start_monitor(current_pkg, current_id, url)
+            start_monitor(current_pkg, current_id, url if url else None)
         elif choice == '3':
             if has_root_access():
                 run_android_cmd("sync && echo 3 > /proc/sys/vm/drop_caches", require_root=True)
