@@ -25,6 +25,8 @@ UPDATE_URLS = [
 
 # Bảng màu
 R, G, Y, B, W = '\033[1;31m', '\033[1;32m', '\033[1;33m', '\033[1;34m', '\033[1;37m'
+ROOT_AVAILABLE = None
+ROOT_WARNED = False
 
 def parse_version(value):
     parts = re.findall(r"\d+", str(value))
@@ -46,6 +48,33 @@ def is_newer_version(remote_version, current_version):
 
 def sh(command):
     return subprocess.getoutput(command).strip()
+
+def has_root_access():
+    global ROOT_AVAILABLE
+    if ROOT_AVAILABLE is not None:
+        return ROOT_AVAILABLE
+
+    su_path = sh("command -v su 2>/dev/null")
+    if not su_path:
+        ROOT_AVAILABLE = False
+        return ROOT_AVAILABLE
+
+    ROOT_AVAILABLE = sh("su -c 'id -u 2>/dev/null'") == "0"
+    return ROOT_AVAILABLE
+
+def run_android_cmd(command, require_root=False, quiet=False):
+    global ROOT_WARNED
+
+    if has_root_access():
+        return os.system(f"su -c '{command}'")
+
+    if require_root:
+        if not quiet and not ROOT_WARNED:
+            print(f"{R}[!] Thiết bị chưa có quyền root/su. Một số chức năng sẽ bị giới hạn.{W}")
+            ROOT_WARNED = True
+        return 1
+
+    return os.system(command)
 
 def is_numeric_account_id(value):
     return str(value).isdigit() and len(str(value)) >= 6
@@ -186,51 +215,71 @@ def auto_update(show_latest_msg=False):
         response = None
         source_url = None
         for url in UPDATE_URLS:
+            try:
+                print(f"{Y}[*] Đang tải từ: {B}{url}{W}")
+            except: pass
             r = requests.get(url, timeout=10, verify=False)
             if r.status_code == 200:
                 response = r
                 source_url = url
+                print(f"{G}[✓] Kết nối thành công!{W}")
                 break
 
         if response is not None:
             remote_ver = extract_remote_version(response.text)
+            print(f"{Y}[*] Phiên bản remote: {B}{remote_ver}{W}")
+            print(f"{Y}[*] Phiên bản hiện tại: {B}{VERSION}{W}")
             if not remote_ver:
                 print(f"{R}[!] Không đọc được VERSION từ server.{W}")
                 return False
 
             if is_newer_version(remote_ver, VERSION):
-                print(f"{G}[+] Tìm thấy bản {remote_ver} từ:\n{B}{source_url}{W}")
-                print(f"{G}[+] Đang tự động cập nhật...{W}")
+                print(f"{G}[+] Tìm thấy bản {remote_ver} mới hơn. Đang tự động cập nhật...{W}")
                 tmp_file = __file__ + ".new"
                 backup_file = __file__ + ".bak"
 
+                print(f"{Y}[*] Ghi file tạm: {tmp_file}{W}")
                 with open(tmp_file, "w", encoding="utf-8") as f:
                     f.write(response.text)
 
+                print(f"{Y}[*] Backup file cũ: {backup_file}{W}")
                 if os.path.exists(backup_file):
                     os.remove(backup_file)
                 os.replace(__file__, backup_file)
                 os.replace(tmp_file, __file__)
+                print(f"{G}[✓] File cập nhật xong!{W}")
 
-                print(f"{G}[✔] Xong! Khởi động lại Hub...{W}")
+                print(f"{G}[✔] Cập nhật hoàn tất! Khởi động lại...{W}")
                 time.sleep(1.5)
-                os.execv(sys.executable, [sys.executable] + sys.argv)
+                try:
+                    import subprocess
+                    subprocess.Popen([sys.executable] + sys.argv)
+                    print(f"{G}[*] Nhấn Enter để tiếp tục...{W}")
+                    sys.exit(0)
+                except Exception as restart_err:
+                    print(f"{Y}[!] Không thể auto-restart: {restart_err}{W}")
+                    print(f"{G}[✓] Vui lòng chạy lại script để sử dụng phiên bản mới!{W}")
+                    time.sleep(2)
+                    sys.exit(0)
                 return True
             elif show_latest_msg:
                 print(f"{G}[✓] Bạn đang ở phiên bản mới nhất ({VERSION}).{W}")
+                return True
         else:
             print(f"{R}[!] Không thể tải bản cập nhật từ mọi URL đã cấu hình.{W}")
     except Exception as e:
         print(f"{R}[!] Lỗi cập nhật: {e}{W}")
+        import traceback
+        traceback.print_exc()
     return False
 
 def launch_game(pkg, link=None):
-    os.system(f"su -c 'am force-stop {pkg}'")
+    run_android_cmd(f"am force-stop {pkg}", require_root=True, quiet=True)
     time.sleep(1)
     if link:
-        os.system(f"su -c 'am start -a android.intent.action.VIEW -d \"{link}\" {pkg}'")
+        run_android_cmd(f"am start -a android.intent.action.VIEW -d \"{link}\" {pkg}")
     else:
-        os.system(f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1'")
+        run_android_cmd(f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1")
 
 def start_monitor(pkg, account_id, link=None):
     os.system('clear')
@@ -266,7 +315,8 @@ def main():
         
         print(f"{B}==========================================")
         print(f"{G}    DELTA ULTIMATE HUB - AUTO SYSTEM      ")
-        print(f"{W}    Version: {Y}{VERSION} {B}| {W}Status: {G}Rooted")
+        status_label = f"{G}Rooted" if has_root_access() else f"{Y}No Root"
+        print(f"{W}    Version: {Y}{VERSION} {B}| {W}Status: {status_label}")
         print(f"{B}==========================================")
         print(f"{W} >> Package Đã Chọn: {Y}{current_pkg}")
         print(f"{W} >> Account ID Nhập: {G}{current_id}")
@@ -288,8 +338,12 @@ def main():
             url = input(f"{Y}Dán link Private: {W}")
             start_monitor(current_pkg, current_id, url)
         elif choice == '3':
-            os.system("su -c 'sync && echo 3 > /proc/sys/vm/drop_caches'")
-            print(f"{G}Đã tối ưu RAM!"); time.sleep(1)
+            if has_root_access():
+                run_android_cmd("sync && echo 3 > /proc/sys/vm/drop_caches", require_root=True)
+                print(f"{G}Đã tối ưu RAM!{W}")
+            else:
+                print(f"{Y}[!] Cần root để dọn RAM nâng cao.{W}")
+            time.sleep(1)
         elif choice == '4':
             auto_update(show_latest_msg=True)
             time.sleep(1.2)
