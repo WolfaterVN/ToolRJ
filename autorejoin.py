@@ -1,4 +1,4 @@
-import os, time, subprocess, re, sys
+import os, time, subprocess, re, sys, json
 
 # Tự động cài thư viện nếu thiếu
 try:
@@ -12,7 +12,7 @@ except ImportError:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- CẤU HÌNH ---
-VERSION = "2.3.1"
+VERSION = "2.3.2"
 PKG_VNG = "com.roblox.client.vnggames"
 PKG_GLOBAL = "com.roblox.client"
 UPDATE_REPO = "WolfaterVN/ToolRJ"
@@ -76,6 +76,43 @@ def run_android_cmd(command, require_root=False, quiet=False):
 
     return os.system(command)
 
+# --- CONFIG MANAGEMENT ---
+CONFIG_FILE = os.path.join(os.path.dirname(__file__) or ".", "autorejoin_config.json")
+
+def load_config():
+    """Tải cấu hình từ file JSON"""
+    if not os.path.exists(CONFIG_FILE):
+        return {"package": "", "account_id": "", "private_link": ""}
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {"package": "", "account_id": "", "private_link": ""}
+
+def save_config(config):
+    """Lưu cấu hình vào file JSON"""
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"{R}[!] Lỗi lưu config: {e}{W}")
+        return False
+
+def delete_config():
+    """Xóa file cấu hình"""
+    if os.path.exists(CONFIG_FILE):
+        try:
+            os.remove(CONFIG_FILE)
+            print(f"{G}[✓] Đã xóa config!{W}")
+            time.sleep(1)
+            return True
+        except Exception as e:
+            print(f"{R}[!] Không thể xóa config: {e}{W}")
+            time.sleep(1)
+            return False
+    return False
+
 def is_numeric_account_id(value):
     return str(value).isdigit() and len(str(value)) >= 6
 
@@ -84,9 +121,13 @@ def get_installed_roblox_packages():
     installed_raw = sh("pm list packages 2>/dev/null")
     return [p for p in candidates if f"package:{p}" in installed_raw]
 
-def select_package_manual():
+def select_package_manual(saved_package=""):
     installed = get_installed_roblox_packages()
-    default_pkg = PKG_VNG if PKG_VNG in installed else PKG_GLOBAL
+    
+    if saved_package and saved_package in installed:
+        default_pkg = saved_package
+    else:
+        default_pkg = PKG_VNG if PKG_VNG in installed else PKG_GLOBAL
 
     while True:
         os.system('clear')
@@ -95,7 +136,10 @@ def select_package_manual():
         print(f"{B}==========================================")
         print(f"{W} [1] {G}{PKG_VNG}")
         print(f"{W} [2] {G}{PKG_GLOBAL}")
-        print(f"{W} [Enter] {Y}Mặc định: {default_pkg}")
+        if saved_package:
+            print(f"{W} [Enter] {Y}Giữ: {default_pkg}")
+        else:
+            print(f"{W} [Enter] {Y}Mặc định: {default_pkg}")
         print(f"{B}==========================================")
 
         pick = input(f"{Y}Chọn package: {W}").strip()
@@ -305,10 +349,32 @@ def main():
     # 1. Tự động kiểm tra cập nhật khi vừa mở
     auto_update()
 
-    # 2. Chọn package thủ công + nhập ID thủ công
-    current_pkg = select_package_manual()
+    # 2. Tải config lưu từ lần trước
+    saved_config = load_config()
+    current_pkg = saved_config.get("package", "")
+    current_id = saved_config.get("account_id", "")
+    current_link = saved_config.get("private_link", "")
+
+    # 3. Chọn package thủ công + nhập ID thủ công
+    if current_pkg:
+        print(f"{Y}[*] Đã tìm thấy config lưu. Sử dụng config này? (Enter = Có, số khác = Thay đổi){W}")
+        choice = input().strip()
+        if choice == "":
+            pass
+        else:
+            current_pkg = ""
+    
+    if not current_pkg:
+        current_pkg = select_package_manual(saved_package=current_pkg)
+    
     os.system('clear')
-    current_id = input_account_id()
+    if current_id:
+        print(f"{Y}ID cũ: {current_id} (Enter để giữ, hoặc nhập ID mới){W}")
+    current_id = input_account_id(default_value=current_id)
+
+    # 4. Lưu config
+    config = {"package": current_pkg, "account_id": current_id, "private_link": current_link}
+    save_config(config)
     
     while True:
         os.system('clear')
@@ -327,7 +393,8 @@ def main():
         print(f"{W} [4] {Y}Kiểm tra cập nhật thủ công")
         print(f"{W} [5] {B}Đổi Package")
         print(f"{W} [6] {B}Đổi Account ID")
-        print(f"{W} [7] {R}Thoát")
+        print(f"{W} [7] {Y}Reset Config")
+        print(f"{W} [8] {R}Thoát")
         print(f"{B}==========================================")
         
         choice = input(f"{Y}Chọn số: {W}")
@@ -336,6 +403,10 @@ def main():
             start_monitor(current_pkg, current_id)
         elif choice == '2':
             url = input(f"{Y}Dán link Private: {W}")
+            if url:
+                current_link = url
+                config["private_link"] = current_link
+                save_config(config)
             start_monitor(current_pkg, current_id, url)
         elif choice == '3':
             if has_root_access():
@@ -348,10 +419,21 @@ def main():
             auto_update(show_latest_msg=True)
             time.sleep(1.2)
         elif choice == '5':
-            current_pkg = select_package_manual()
+            current_pkg = select_package_manual(saved_package=current_pkg)
+            config["package"] = current_pkg
+            save_config(config)
         elif choice == '6':
             current_id = input_account_id(default_value=current_id)
+            config["account_id"] = current_id
+            save_config(config)
         elif choice == '7':
+            print(f"{R}[!] Bạn chắc chắn muốn xóa config? (y/n){W}")
+            if input().strip().lower() == 'y':
+                delete_config()
+                current_pkg = ""
+                current_id = ""
+                current_link = ""
+        elif choice == '8':
             sys.exit()
 
 if __name__ == "__main__":
