@@ -12,7 +12,7 @@ except ImportError:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- CẤU HÌNH ---
-VERSION = "2.0"
+VERSION = "2.1"
 UPDATE_URL = "https://raw.githubusercontent.com/WolfaterVN/ToolRJ/refs/heads/main/autorejoin.py"
 
 # Bảng màu
