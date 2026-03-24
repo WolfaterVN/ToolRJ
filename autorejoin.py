@@ -12,7 +12,7 @@ except ImportError:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- CẤU HÌNH ---
-VERSION = "2.1"
+VERSION = "2.2"
 UPDATE_URL = "https://raw.githubusercontent.com/WolfaterVN/ToolRJ/refs/heads/main/autorejoin.py"
 
 # Bảng màu
@@ -39,6 +39,9 @@ def is_newer_version(remote_version, current_version):
 def sh(command):
     return subprocess.getoutput(command).strip()
 
+def is_numeric_account_id(value):
+    return str(value).isdigit() and len(str(value)) >= 6
+
 def get_auto_package():
     """Tự động nhận diện package Roblox phù hợp trên máy"""
     candidates = ["com.vng.roblox", "com.roblox.client"]
@@ -47,6 +50,23 @@ def get_auto_package():
 
     if not installed:
         return "com.roblox.client"
+
+    if "com.vng.roblox" in installed and "com.roblox.client" in installed:
+        vng_id = get_auto_id("com.vng.roblox")
+        global_id = get_auto_id("com.roblox.client")
+        vng_ok = is_numeric_account_id(vng_id)
+        global_ok = is_numeric_account_id(global_id)
+
+        if vng_ok and not global_ok:
+            return "com.vng.roblox"
+        if global_ok and not vng_ok:
+            return "com.roblox.client"
+
+        for pkg in ["com.vng.roblox", "com.roblox.client"]:
+            if sh(f"pidof {pkg} 2>/dev/null"):
+                return pkg
+
+        return "com.vng.roblox"
 
     for pkg in installed:
         if sh(f"pidof {pkg} 2>/dev/null"):
