@@ -12,7 +12,7 @@ except ImportError:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- CẤU HÌNH ---
-VERSION = "2.3.4"
+VERSION = "2.3.5"
 PKG_VNG = "com.roblox.client.vnggames"
 PKG_GLOBAL = "com.roblox.client"
 UPDATE_REPO = "WolfaterVN/ToolRJ"
@@ -112,6 +112,108 @@ def delete_config():
             time.sleep(1)
             return False
     return False
+
+# --- LUA SCRIPT INTEGRATION ---
+LUA_SCRIPT_FILE = os.path.join(os.path.dirname(__file__) or ".", "rejoin.lua")
+
+def load_lua_script():
+    """Tải script Lua từ file"""
+    if not os.path.exists(LUA_SCRIPT_FILE):
+        print(f"{R}[!] Không tìm thấy file rejoin.lua!{W}")
+        print(f"{Y}[*] File phải ở cùng thư mục với script Python.{W}")
+        time.sleep(2)
+        return None
+    
+    try:
+        with open(LUA_SCRIPT_FILE, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        print(f"{R}[!] Lỗi đọc file Lua: {e}{W}")
+        time.sleep(2)
+        return None
+
+def show_lua_script_menu():
+    """Hiển thị menu load Lua script"""
+    lua_code = load_lua_script()
+    if not lua_code:
+        return
+    
+    while True:
+        os.system('clear')
+        print(f"{B}==========================================")
+        print(f"{G}           LUA SCRIPT - AUTO REJOIN       ")
+        print(f"{B}==========================================")
+        print(f"{W} [1] {G}In ra script Lua (Copy)")
+        print(f"{W} [2] {Y}Hướng dẫn load vào Executor")
+        print(f"{W} [3] {B}Export thành file rejoin.lua")
+        print(f"{W} [4] {R}Quay lại Menu Chính")
+        print(f"{B}==========================================")
+        
+        choice = input(f"{Y}Chọn: {W}").strip()
+        
+        if choice == '1':
+            os.system('clear')
+            print(f"{G}=== ROBLOX LUA AUTO REJOIN SCRIPT ==={W}\n")
+            print(lua_code)
+            print(f"\n{G}=== Hết script ==={W}")
+            print(f"{Y}[*] Copy toàn bộ text trên vào Executor (Synapse X, Krnl, v.v){W}")
+            input(f"{Y}Nhấn Enter để tiếp tục...{W}")
+            
+        elif choice == '2':
+            os.system('clear')
+            print(f"{B}==========================================")
+            print(f"{G}      HƯỚNG DẪN LOAD LUA SCRIPT         ")
+            print(f"{B}==========================================")
+            print(f"""{W}
+1. MỞ EXECUTOR:
+   - Mở Synapse X, Krnl, hoặc executor Roblox khác
+   - Attach vào Roblox game window
+
+2. LOAD SCRIPT:
+   - [1] In ra script → Copy toàn bộ code
+   - Dán vào executor
+   - Nhấn Execute / Load
+
+3. KIỂM TRA:
+   - Game sẽ show thông báo "✅ Auto Rejoin Script Loaded!"
+   - Script sẽ tự check kết nối mỗi 5 giây
+   - Nếu mất kết nối → tự động rejoin sau 10 giây
+
+4. SHORTCUTS KHI SCRIPT CHẠY:
+   - Ctrl + R = Bật/Tắt auto rejoin
+   - Ctrl + J = Rejoin ngay lập tức
+
+5. THOÁT:
+   - Inject script khác hoặc reload
+   - Script sẽ dừng khi game đóng
+
+{B}==========================================
+{Y}Gợi ý: Dùng auto rejoin Lua + auto rejoin Python 
+        để đảm bảo không mất người!{W}
+{B}==========================================
+            """)
+            input(f"{Y}Nhấn Enter để quay lại...{W}")
+            
+        elif choice == '3':
+            try:
+                with open(LUA_SCRIPT_FILE, "r", encoding="utf-8") as f:
+                    content = f.read()
+                
+                export_path = os.path.join(os.path.dirname(__file__) or ".", "rejoin_export.lua")
+                with open(export_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                
+                print(f"{G}[✓] Đã export script vào: {export_path}{W}")
+                time.sleep(2)
+            except Exception as e:
+                print(f"{R}[!] Lỗi export: {e}{W}")
+                time.sleep(2)
+        
+        elif choice == '4':
+            break
+        else:
+            print(f"{R}[!] Lựa chọn không hợp lệ{W}")
+            time.sleep(1)
 
 def is_numeric_account_id(value):
     return str(value).isdigit() and len(str(value)) >= 6
@@ -412,7 +514,8 @@ def main():
         print(f"{W} [5] {B}Đổi Package")
         print(f"{W} [6] {B}Đổi Account ID")
         print(f"{W} [7] {Y}Reset Config")
-        print(f"{W} [8] {R}Thoát")
+        print(f"{W} [8] {G}Lua Script - Auto Rejoin")
+        print(f"{W} [9] {R}Thoát")
         print(f"{B}==========================================")
         
         choice = input(f"{Y}Chọn số: {W}")
@@ -467,6 +570,8 @@ def main():
                 current_id = ""
                 current_link = ""
         elif choice == '8':
+            show_lua_script_menu()
+        elif choice == '9':
             sys.exit()
 
 if __name__ == "__main__":
