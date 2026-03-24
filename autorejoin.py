@@ -12,7 +12,7 @@ except ImportError:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- CẤU HÌNH ---
-VERSION = "2.3.5"
+VERSION = "2.3.6"
 PKG_VNG = "com.roblox.client.vnggames"
 PKG_GLOBAL = "com.roblox.client"
 UPDATE_REPO = "WolfaterVN/ToolRJ"
@@ -132,6 +132,59 @@ def load_lua_script():
         time.sleep(2)
         return None
 
+def find_delta_folder():
+    """Tìm Delta executor folder trên thiết bị"""
+    possible_paths = [
+        "/sdcard/Delta",
+        "/sdcard/Android/data/com.delta.executor",
+        "/data/data/com.delta.executor",
+        "/storage/emulated/0/Delta",
+    ]
+    
+    for path in possible_paths:
+        result = sh(f"test -d {path} && echo 'found'")
+        if result == "found":
+            return path
+    
+    return None
+
+def copy_lua_to_delta():
+    """Copy rejoin.lua vào Delta autoexecute folder"""
+    if not os.path.exists(LUA_SCRIPT_FILE):
+        print(f"{R}[!] Không tìm thấy file rejoin.lua!{W}")
+        time.sleep(2)
+        return False
+    
+    delta_folder = find_delta_folder()
+    if not delta_folder:
+        print(f"{R}[!] Không tìm thấy Delta Executor trên thiết bị!{W}")
+        print(f"{Y}[*] Cài đặt Delta và khởi động lần đầu, sau đó thử lại.{W}")
+        time.sleep(2)
+        return False
+    
+    autoexecute_path = f"{delta_folder}/autoexecute"
+    
+    # Tạo folder autoexecute nếu chưa có
+    run_android_cmd(f"mkdir -p {autoexecute_path}", require_root=True, quiet=True)
+    
+    # Copy file
+    try:
+        with open(LUA_SCRIPT_FILE, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        dest_file = f"{autoexecute_path}/rejoin.lua"
+        print(f"{Y}[*] Đang copy vào: {dest_file}...{W}")
+        run_android_cmd(f"cat > {dest_file} << 'EOF'\n{content}\nEOF", require_root=True, quiet=False)
+        
+        print(f"{G}[✓] Đã copy script vào: {dest_file}{W}")
+        print(f"{G}[✓] Script sẽ tự động load khi khởi động Delta!{W}")
+        time.sleep(2)
+        return True
+    except Exception as e:
+        print(f"{R}[!] Lỗi copy file: {e}{W}")
+        time.sleep(2)
+        return False
+
 def show_lua_script_menu():
     """Hiển thị menu load Lua script"""
     lua_code = load_lua_script()
@@ -146,7 +199,8 @@ def show_lua_script_menu():
         print(f"{W} [1] {G}In ra script Lua (Copy)")
         print(f"{W} [2] {Y}Hướng dẫn load vào Executor")
         print(f"{W} [3] {B}Export thành file rejoin.lua")
-        print(f"{W} [4] {R}Quay lại Menu Chính")
+        print(f"{W} [4] {B}Cài vào Delta Autoexecute")
+        print(f"{W} [5] {R}Quay lại Menu Chính")
         print(f"{B}==========================================")
         
         choice = input(f"{Y}Chọn: {W}").strip()
@@ -210,6 +264,11 @@ def show_lua_script_menu():
                 time.sleep(2)
         
         elif choice == '4':
+            os.system('clear')
+            print(f"{Y}[*] Đang cài script vào Delta Autoexecute...{W}")
+            copy_lua_to_delta()
+        
+        elif choice == '5':
             break
         else:
             print(f"{R}[!] Lựa chọn không hợp lệ{W}")
