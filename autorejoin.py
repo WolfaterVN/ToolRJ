@@ -13,7 +13,7 @@ except ImportError:
 
 # --- CẤU HÌNH ---
 VERSION = "2.0"
-UPDATE_URL = "https://raw.githubusercontent.com/WolfaterVN/ToolRJ/main/autorejoin.py"
+UPDATE_URL = "https://raw.githubusercontent.com/WolfaterVN/ToolRJ/refs/heads/main/autorejoin.py"
 
 # Bảng màu
 R, G, Y, B, W = '\033[1;31m', '\033[1;32m', '\033[1;33m', '\033[1;34m', '\033[1;37m'
