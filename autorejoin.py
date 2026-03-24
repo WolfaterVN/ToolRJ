@@ -12,7 +12,7 @@ except ImportError:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- CẤU HÌNH ---
-VERSION = "2.2"
+VERSION = "2.3"
 UPDATE_REPO = "WolfaterVN/ToolRJ"
 UPDATE_BRANCH = "main"
 UPDATE_FILE = "autorejoin.py"
@@ -47,6 +47,60 @@ def sh(command):
 
 def is_numeric_account_id(value):
     return str(value).isdigit() and len(str(value)) >= 6
+
+def get_installed_roblox_packages():
+    candidates = ["com.vng.roblox", "com.roblox.client"]
+    installed_raw = sh("pm list packages 2>/dev/null")
+    return [p for p in candidates if f"package:{p}" in installed_raw]
+
+def select_package_manual():
+    installed = get_installed_roblox_packages()
+    default_pkg = "com.vng.roblox" if "com.vng.roblox" in installed else "com.roblox.client"
+
+    while True:
+        os.system('clear')
+        print(f"{B}==========================================")
+        print(f"{G}           CHỌN ROBLOX PACKAGE            ")
+        print(f"{B}==========================================")
+        print(f"{W} [1] {G}com.vng.roblox")
+        print(f"{W} [2] {G}com.roblox.client")
+        print(f"{W} [Enter] {Y}Mặc định: {default_pkg}")
+        print(f"{B}==========================================")
+
+        pick = input(f"{Y}Chọn package: {W}").strip()
+        if pick == "1":
+            selected = "com.vng.roblox"
+        elif pick == "2":
+            selected = "com.roblox.client"
+        elif pick == "":
+            selected = default_pkg
+        else:
+            print(f"{R}[!] Lựa chọn không hợp lệ.{W}")
+            time.sleep(1)
+            continue
+
+        if installed and selected not in installed:
+            print(f"{R}[!] {selected} chưa cài trên máy. Vui lòng chọn lại.{W}")
+            time.sleep(1.2)
+            continue
+
+        return selected
+
+def input_account_id(default_value=""):
+    while True:
+        prompt = f"{Y}Nhập Account ID"
+        if default_value:
+            prompt += f" (Enter để giữ {default_value})"
+        prompt += f": {W}"
+
+        value = input(prompt).strip()
+        if not value and default_value:
+            return default_value
+        if value.isdigit() and len(value) >= 6:
+            return value
+
+        print(f"{R}[!] Account ID không hợp lệ (chỉ số, tối thiểu 6 ký tự).{W}")
+        time.sleep(1)
 
 def get_auto_package():
     """Tự động nhận diện package Roblox phù hợp trên máy"""
@@ -176,11 +230,10 @@ def launch_game(pkg, link=None):
     else:
         os.system(f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1'")
 
-def start_monitor(pkg, link=None):
+def start_monitor(pkg, account_id, link=None):
     os.system('clear')
-    uid = get_auto_id(pkg)
     print(f"{G}>>> TRẠNG THÁI: ĐANG TREO GAME <<<")
-    print(f"{W}Account ID: {Y}{uid}")
+    print(f"{W}Account ID: {Y}{account_id}")
     print(f"{W}Package   : {B}{pkg}")
     print(f"{R}Nhấn Ctrl+C để dừng và về Menu")
     print(f"{G}------------------------------------")
@@ -200,34 +253,38 @@ def start_monitor(pkg, link=None):
 def main():
     # 1. Tự động kiểm tra cập nhật khi vừa mở
     auto_update()
+
+    # 2. Chọn package thủ công + nhập ID thủ công
+    current_pkg = select_package_manual()
+    os.system('clear')
+    current_id = input_account_id()
     
     while True:
         os.system('clear')
-        # 2. Tự động lấy Package và ID ngay tại Menu chính
-        current_pkg = get_auto_package()
-        current_id = get_auto_id(current_pkg)
         
         print(f"{B}==========================================")
         print(f"{G}    DELTA ULTIMATE HUB - AUTO SYSTEM      ")
         print(f"{W}    Version: {Y}{VERSION} {B}| {W}Status: {G}Rooted")
         print(f"{B}==========================================")
-        print(f"{W} >> Package Tự Nhận: {Y}{current_pkg}")
-        print(f"{W} >> Account ID Quét: {G}{current_id}")
+        print(f"{W} >> Package Đã Chọn: {Y}{current_pkg}")
+        print(f"{W} >> Account ID Nhập: {G}{current_id}")
         print(f"{B}==========================================")
         print(f"{W} [1] {G}Auto Rejoin (Public Server)")
         print(f"{W} [2] {G}Auto Rejoin (Private Link)")
         print(f"{W} [3] {B}Dọn RAM & Tối ưu UgPhone")
         print(f"{W} [4] {Y}Kiểm tra cập nhật thủ công")
-        print(f"{W} [5] {R}Thoát")
+        print(f"{W} [5] {B}Đổi Package")
+        print(f"{W} [6] {B}Đổi Account ID")
+        print(f"{W} [7] {R}Thoát")
         print(f"{B}==========================================")
         
         choice = input(f"{Y}Chọn số: {W}")
         
         if choice == '1':
-            start_monitor(current_pkg)
+            start_monitor(current_pkg, current_id)
         elif choice == '2':
             url = input(f"{Y}Dán link Private: {W}")
-            start_monitor(current_pkg, url)
+            start_monitor(current_pkg, current_id, url)
         elif choice == '3':
             os.system("su -c 'sync && echo 3 > /proc/sys/vm/drop_caches'")
             print(f"{G}Đã tối ưu RAM!"); time.sleep(1)
@@ -235,6 +292,10 @@ def main():
             auto_update(show_latest_msg=True)
             time.sleep(1.2)
         elif choice == '5':
+            current_pkg = select_package_manual()
+        elif choice == '6':
+            current_id = input_account_id(default_value=current_id)
+        elif choice == '7':
             sys.exit()
 
 if __name__ == "__main__":
