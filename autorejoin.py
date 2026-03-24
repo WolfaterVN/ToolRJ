@@ -13,7 +13,13 @@ except ImportError:
 
 # --- CẤU HÌNH ---
 VERSION = "2.2"
-UPDATE_URL = "https://raw.githubusercontent.com/WolfaterVN/ToolRJ/refs/heads/main/autorejoin.py"
+UPDATE_REPO = "WolfaterVN/ToolRJ"
+UPDATE_BRANCH = "main"
+UPDATE_FILE = "autorejoin.py"
+UPDATE_URLS = [
+    f"https://raw.githubusercontent.com/{UPDATE_REPO}/refs/heads/{UPDATE_BRANCH}/{UPDATE_FILE}",
+    f"https://raw.githubusercontent.com/{UPDATE_REPO}/{UPDATE_BRANCH}/{UPDATE_FILE}"
+]
 
 # Bảng màu
 R, G, Y, B, W = '\033[1;31m', '\033[1;32m', '\033[1;33m', '\033[1;34m', '\033[1;37m'
@@ -121,15 +127,24 @@ def get_auto_id(pkg):
 def auto_update(show_latest_msg=False):
     print(f"{Y}[*] Đang kiểm tra phiên bản mới...{W}")
     try:
-        response = requests.get(UPDATE_URL, timeout=10, verify=False)
-        if response.status_code == 200:
+        response = None
+        source_url = None
+        for url in UPDATE_URLS:
+            r = requests.get(url, timeout=10, verify=False)
+            if r.status_code == 200:
+                response = r
+                source_url = url
+                break
+
+        if response is not None:
             remote_ver = extract_remote_version(response.text)
             if not remote_ver:
                 print(f"{R}[!] Không đọc được VERSION từ server.{W}")
                 return False
 
             if is_newer_version(remote_ver, VERSION):
-                print(f"{G}[+] Tìm thấy bản {remote_ver}. Đang tự động cập nhật...{W}")
+                print(f"{G}[+] Tìm thấy bản {remote_ver} từ:\n{B}{source_url}{W}")
+                print(f"{G}[+] Đang tự động cập nhật...{W}")
                 tmp_file = __file__ + ".new"
                 backup_file = __file__ + ".bak"
 
@@ -148,7 +163,7 @@ def auto_update(show_latest_msg=False):
             elif show_latest_msg:
                 print(f"{G}[✓] Bạn đang ở phiên bản mới nhất ({VERSION}).{W}")
         else:
-            print(f"{R}[!] Không thể tải bản cập nhật (HTTP {response.status_code}).{W}")
+            print(f"{R}[!] Không thể tải bản cập nhật từ mọi URL đã cấu hình.{W}")
     except Exception as e:
         print(f"{R}[!] Lỗi cập nhật: {e}{W}")
     return False
