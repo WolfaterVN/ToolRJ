@@ -13,6 +13,8 @@ except ImportError:
 
 # --- CẤU HÌNH ---
 VERSION = "2.3"
+PKG_VNG = "com.roblox.client.vnggames"
+PKG_GLOBAL = "com.roblox.client"
 UPDATE_REPO = "WolfaterVN/ToolRJ"
 UPDATE_BRANCH = "main"
 UPDATE_FILE = "autorejoin.py"
@@ -49,29 +51,29 @@ def is_numeric_account_id(value):
     return str(value).isdigit() and len(str(value)) >= 6
 
 def get_installed_roblox_packages():
-    candidates = ["com.vng.roblox", "com.roblox.client"]
+    candidates = [PKG_VNG, PKG_GLOBAL]
     installed_raw = sh("pm list packages 2>/dev/null")
     return [p for p in candidates if f"package:{p}" in installed_raw]
 
 def select_package_manual():
     installed = get_installed_roblox_packages()
-    default_pkg = "com.vng.roblox" if "com.vng.roblox" in installed else "com.roblox.client"
+    default_pkg = PKG_VNG if PKG_VNG in installed else PKG_GLOBAL
 
     while True:
         os.system('clear')
         print(f"{B}==========================================")
         print(f"{G}           CHỌN ROBLOX PACKAGE            ")
         print(f"{B}==========================================")
-        print(f"{W} [1] {G}com.vng.roblox")
-        print(f"{W} [2] {G}com.roblox.client")
+        print(f"{W} [1] {G}{PKG_VNG}")
+        print(f"{W} [2] {G}{PKG_GLOBAL}")
         print(f"{W} [Enter] {Y}Mặc định: {default_pkg}")
         print(f"{B}==========================================")
 
         pick = input(f"{Y}Chọn package: {W}").strip()
         if pick == "1":
-            selected = "com.vng.roblox"
+            selected = PKG_VNG
         elif pick == "2":
-            selected = "com.roblox.client"
+            selected = PKG_GLOBAL
         elif pick == "":
             selected = default_pkg
         else:
@@ -104,29 +106,29 @@ def input_account_id(default_value=""):
 
 def get_auto_package():
     """Tự động nhận diện package Roblox phù hợp trên máy"""
-    candidates = ["com.vng.roblox", "com.roblox.client"]
+    candidates = [PKG_VNG, PKG_GLOBAL]
     installed_raw = sh("pm list packages 2>/dev/null")
     installed = [p for p in candidates if (f"package:{p}" in installed_raw or p in installed_raw)]
 
     if not installed:
-        return "com.roblox.client"
+        return PKG_GLOBAL
 
-    if "com.vng.roblox" in installed and "com.roblox.client" in installed:
-        vng_id = get_auto_id("com.vng.roblox")
-        global_id = get_auto_id("com.roblox.client")
+    if PKG_VNG in installed and PKG_GLOBAL in installed:
+        vng_id = get_auto_id(PKG_VNG)
+        global_id = get_auto_id(PKG_GLOBAL)
         vng_ok = is_numeric_account_id(vng_id)
         global_ok = is_numeric_account_id(global_id)
 
         if vng_ok and not global_ok:
-            return "com.vng.roblox"
+            return PKG_VNG
         if global_ok and not vng_ok:
-            return "com.roblox.client"
+            return PKG_GLOBAL
 
-        for pkg in ["com.vng.roblox", "com.roblox.client"]:
+        for pkg in [PKG_VNG, PKG_GLOBAL]:
             if sh(f"pidof {pkg} 2>/dev/null"):
                 return pkg
 
-        return "com.vng.roblox"
+        return PKG_VNG
 
     for pkg in installed:
         if sh(f"pidof {pkg} 2>/dev/null"):
