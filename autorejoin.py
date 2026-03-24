@@ -253,7 +253,23 @@ def get_auto_id(pkg):
     except Exception:
         return "Lỗi Root"
 
-def auto_update(show_latest_msg=False):
+def check_internet():
+    """Kiểm tra kết nối internet"""
+    try:
+        r = requests.head("https://github.com", timeout=5, verify=False)
+        return r.status_code < 500
+    except:
+        return False
+
+def auto_update(show_latest_msg=False, check_online=False):
+    if check_online:
+        print(f"{Y}[*] Kiểm tra kết nối mạng...{W}")
+        if not check_internet():
+            print(f"{R}[!] Không có kết nối internet. Bỏ qua auto update.{W}")
+            time.sleep(1)
+            return False
+        print(f"{G}[✓] Kết nối mạng OK!{W}")
+
     print(f"{Y}[*] Đang kiểm tra phiên bản mới...{W}")
     try:
         response = None
@@ -346,33 +362,34 @@ def start_monitor(pkg, account_id, link=None):
 
 # --- GIAO DIỆN CHÍNH (HUB) ---
 def main():
-    # 1. Tự động kiểm tra cập nhật khi vừa mở
-    auto_update()
+    # 1. Tự động kiểm tra+ cập nhật khi vừa mở
+    auto_update(check_online=True)
+    
+    # 2. Kiểm tra trạng thái online
+    is_online = check_internet()
 
-    # 2. Tải config lưu từ lần trước
+    # 3. Tải config lưu từ lần trước
     saved_config = load_config()
     current_pkg = saved_config.get("package", "")
     current_id = saved_config.get("account_id", "")
     current_link = saved_config.get("private_link", "")
 
-    # 3. Chọn package thủ công + nhập ID thủ công
-    if current_pkg:
-        print(f"{Y}[*] Đã tìm thấy config lưu. Sử dụng config này? (Enter = Có, số khác = Thay đổi){W}")
-        choice = input().strip()
-        if choice == "":
-            pass
-        else:
-            current_pkg = ""
-    
-    if not current_pkg:
-        current_pkg = select_package_manual(saved_package=current_pkg)
-    
-    os.system('clear')
-    if current_id:
-        print(f"{Y}ID cũ: {current_id} (Enter để giữ, hoặc nhập ID mới){W}")
-    current_id = input_account_id(default_value=current_id)
+    # 4. Tự động chọn package + ID nếu config đầy đủ
+    if current_pkg and current_id:
+        # Config đầy đủ, dùng ngay không hỏi
+        print(f"{G}[✓] Đã load config: Package={Y}{current_pkg}{G}, ID={Y}{current_id}{W}")
+        time.sleep(1)
+    else:
+        # Config thiếu, hỏi/nhập
+        if not current_pkg:
+            current_pkg = select_package_manual(saved_package=current_pkg)
+        
+        os.system('clear')
+        if current_id:
+            print(f"{Y}ID cũ: {current_id} (Enter để giữ, hoặc nhập ID mới){W}")
+        current_id = input_account_id(default_value=current_id)
 
-    # 4. Lưu config
+    # 5. Lưu config
     config = {"package": current_pkg, "account_id": current_id, "private_link": current_link}
     save_config(config)
     
@@ -382,7 +399,8 @@ def main():
         print(f"{B}==========================================")
         print(f"{G}    DELTA ULTIMATE HUB - AUTO SYSTEM      ")
         status_label = f"{G}Rooted" if has_root_access() else f"{Y}No Root"
-        print(f"{W}    Version: {Y}{VERSION} {B}| {W}Status: {status_label}")
+        online_label = f"{G}Online" if is_online else f"{R}Offline"
+        print(f"{W}    Version: {Y}{VERSION} {B}| {W}Status: {status_label}{B} | {W}Net: {online_label}")
         print(f"{B}==========================================")
         print(f"{W} >> Package Đã Chọn: {Y}{current_pkg}")
         print(f"{W} >> Account ID Nhập: {G}{current_id}")
@@ -416,8 +434,13 @@ def main():
                 print(f"{Y}[!] Cần root để dọn RAM nâng cao.{W}")
             time.sleep(1)
         elif choice == '4':
-            auto_update(show_latest_msg=True)
-            time.sleep(1.2)
+            is_online = check_internet()
+            if not is_online:
+                print(f"{R}[!] Không có kết nối internet!{W}")
+                time.sleep(1.5)
+            else:
+                auto_update(show_latest_msg=True)
+            time.sleep(1)
         elif choice == '5':
             current_pkg = select_package_manual(saved_package=current_pkg)
             config["package"] = current_pkg
