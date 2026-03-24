@@ -12,7 +12,7 @@ except ImportError:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- CẤU HÌNH ---
-VERSION = "2.3.3"
+VERSION = "2.3.4"
 PKG_VNG = "com.roblox.client.vnggames"
 PKG_GLOBAL = "com.roblox.client"
 UPDATE_REPO = "WolfaterVN/ToolRJ"
